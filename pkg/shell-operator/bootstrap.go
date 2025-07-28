@@ -21,34 +21,30 @@ import (
 
 // Init initialize logging, ensures directories and creates
 // a ShellOperator instance with all dependencies.
-func Init(logger *log.Logger) (*ShellOperator, error) {
-	runtimeConfig := config.NewConfig(logger)
-	// Init logging subsystem.
-	app.SetupLogging(runtimeConfig, logger)
-
+func Init() (*ShellOperator, error) {
 	// Log version and jq filtering implementation.
-	logger.Info(app.AppStartMessage)
+	app.L.Info(app.AppStartMessage)
 	fl := jq.NewFilter()
-	logger.Debug(fl.FilterInfo())
+	app.L.Debug(fl.FilterInfo())
 
 	hooksDir, err := utils.RequireExistingDirectory(app.HooksDir)
 	if err != nil {
-		logger.Log(context.TODO(), log.LevelFatal.Level(), "hooks directory is required", log.Err(err))
+		app.L.Fatal("hooks directory is required", log.Err(err))
 		return nil, err
 	}
 
 	tempDir, err := utils.EnsureTempDirectory(app.TempDir)
 	if err != nil {
-		logger.Log(context.TODO(), log.LevelFatal.Level(), "temp directory", log.Err(err))
+		app.L.Fatal("temp directory", log.Err(err))
 		return nil, err
 	}
 
-	op := NewShellOperator(context.TODO(), WithLogger(logger))
+	op := NewShellOperator(context.TODO(), WithLogger(app.L))
 
 	// Debug server.
 	debugServer, err := RunDefaultDebugServer(app.DebugUnixSocket, app.DebugHttpServerAddr, op.logger.Named("debug-server"))
 	if err != nil {
-		logger.Log(context.TODO(), log.LevelFatal.Level(), "start Debug server", log.Err(err))
+		app.L.Fatal("start Debug server", log.Err(err))
 		return nil, err
 	}
 
@@ -58,13 +54,13 @@ func Init(logger *log.Logger) (*ShellOperator, error) {
 		"queue":   "",
 	})
 	if err != nil {
-		logger.Log(context.TODO(), log.LevelFatal.Level(), "essemble common operator", log.Err(err))
+		app.L.Fatal("essemble common operator", log.Err(err))
 		return nil, err
 	}
 
-	err = op.assembleShellOperator(hooksDir, tempDir, debugServer, runtimeConfig)
+	err = op.assembleShellOperator(hooksDir, tempDir, debugServer)
 	if err != nil {
-		logger.Log(context.TODO(), log.LevelFatal.Level(), "essemble shell operator", log.Err(err))
+		app.L.Fatal("essemble shell operator", log.Err(err))
 		return nil, err
 	}
 
@@ -113,7 +109,8 @@ func (op *ShellOperator) AssembleCommonOperator(listenAddress, listenPort string
 //   - hook manager
 //   - kubernetes events manager
 //   - schedule manager
-func (op *ShellOperator) assembleShellOperator(hooksDir string, tempDir string, debugServer *debug.Server, runtimeConfig *config.Config) error {
+func (op *ShellOperator) assembleShellOperator(hooksDir string, tempDir string, debugServer *debug.Server) error {
+	runtimeConfig := config.NewConfig(app.L)
 	registerRootRoute(op)
 	// for shell-operator only
 	registerHookMetrics(op.HookMetricStorage)

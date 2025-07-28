@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/flant/kube-client/klogtolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -24,28 +25,32 @@ const (
 	AppDescription = "Shell-operator is a tool for running event-driven scripts in a Kubernetes cluster"
 )
 
-func start(logger *log.Logger) func(_ *kingpin.ParseContext) error {
-	return func(_ *kingpin.ParseContext) error {
-		app.AppStartMessage = fmt.Sprintf("%s %s", app.AppName, app.Version)
-		ctx := context.Background()
-		telemetryShutdown := registerTelemetry(ctx)
-		// Init logging and initialize a ShellOperator instance.
-		operator, err := shell_operator.Init(logger.Named("shell-operator"))
-		if err != nil {
-			return fmt.Errorf("init failed: %w", err)
-		}
+func start(c *kingpin.ParseContext) error {
+	app.AppStartMessage = fmt.Sprintf("%s %s", app.AppName, app.Version)
+	ctx := context.Background()
+	telemetryShutdown := registerTelemetry(ctx)
 
-		operator.Start()
+	app.SetupLogging()
 
-		// Block action by waiting signals from OS.
-		utils_signal.WaitForProcessInterruption(func() {
-			operator.Shutdown()
-			_ = telemetryShutdown(ctx)
-			os.Exit(1)
-		})
+	// Initialize klog wrapper when all values are parsed
+	klogtolog.InitAdapter(app.DebugKubernetesAPI, app.L.Named("klog"))
 
-		return nil
+	operator, err := shell_operator.Init()
+	if err != nil {
+		app.L.Fatal("operator init failed", log.Err(err))
+		return err
 	}
+
+	operator.Start()
+
+	// Block action by waiting signals from OS.
+	utils_signal.WaitForProcessInterruption(func() {
+		operator.Shutdown()
+		_ = telemetryShutdown(ctx)
+		os.Exit(1)
+	})
+
+	return nil
 }
 
 func registerTelemetry(ctx context.Context) func(ctx context.Context) error {

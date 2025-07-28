@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/flant/kube-client/klogtolog"
 	"github.com/flant/shell-operator/pkg/app"
 	"github.com/flant/shell-operator/pkg/debug"
 	"github.com/flant/shell-operator/pkg/filter/jq"
@@ -16,17 +14,8 @@ import (
 func main() {
 	kpApp := kingpin.New(app.AppName, fmt.Sprintf("%s %s: %s", app.AppName, app.Version, app.AppDescription))
 
-	logger := log.NewLogger()
-	log.SetDefault(logger)
-
 	// override usage template to reveal additional commands with information about start command
 	kpApp.UsageTemplate(app.OperatorUsageTemplate(app.AppName))
-
-	// Initialize klog wrapper when all values are parsed
-	kpApp.Action(func(_ *kingpin.ParseContext) error {
-		klogtolog.InitAdapter(app.DebugKubernetesAPI, logger.Named("klog"))
-		return nil
-	})
 
 	// print version
 	kpApp.Command("version", "Show version.").Action(func(_ *kingpin.ParseContext) error {
@@ -39,7 +28,7 @@ func main() {
 	// start main loop
 	startCmd := kpApp.Command("start", "Start shell-operator.").
 		Default().
-		Action(start(logger))
+		Action(start)
 	app.DefineStartCommandFlags(kpApp, startCmd)
 
 	debug.DefineDebugCommands(kpApp)

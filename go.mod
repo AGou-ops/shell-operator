@@ -41,6 +41,7 @@ require (
 	github.com/itchyny/gojq v0.12.17
 	github.com/muesli/termenv v0.16.0
 	github.com/onsi/ginkgo/v2 v2.23.4
+	github.com/sirupsen/logrus v1.9.3
 )
 
 require (
