@@ -228,7 +228,8 @@ func (hm *Manager) execCommandOutput(hookName string, dir string, entrypoint str
 		WithLogProxyHookJSONKey(app.ProxyJsonLogKey).
 		WithCMDStdout(nil).
 		WithCMDStderr(nil).
-		WithLogger(hm.logger.Named("executor"))
+		WithLogger(hm.logger.Named("executor")).
+		WithTextLogMode(app.LogType == "text")
 
 	debugEntry := hm.logger.With("hook", hookName).
 		With("cmd", strings.Join(args, " "))

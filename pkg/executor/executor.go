@@ -36,6 +36,7 @@ type Executor struct {
 	logProxyHookJSON bool
 	proxyJsonKey     string
 	logger           *log.Logger
+	textLogMode      bool
 }
 
 func (e *Executor) WithLogProxyHookJSON(logProxyHookJSON bool) *Executor {
@@ -56,6 +57,12 @@ func (e *Executor) WithLogProxyHookJSONKey(logProxyHookJSONKey string) *Executor
 
 func (e *Executor) WithLogger(logger *log.Logger) *Executor {
 	e.logger = logger
+
+	return e
+}
+
+func (e *Executor) WithTextLogMode(textLogMode bool) *Executor {
+	e.textLogMode = textLogMode
 
 	return e
 }
@@ -130,6 +137,8 @@ func (e *Executor) RunAndLogLines(ctx context.Context, logLabels map[string]stri
 		proxyJsonLogKey:  e.proxyJsonKey,
 		logger:           stdoutLogEntry,
 		buf:              make([]byte, 0),
+		textLogMode:      e.textLogMode,
+		outputType:       "stdout",
 	}
 
 	ple := &proxyLogger{
@@ -138,6 +147,8 @@ func (e *Executor) RunAndLogLines(ctx context.Context, logLabels map[string]stri
 		proxyJsonLogKey:  e.proxyJsonKey,
 		logger:           stderrLogEntry,
 		buf:              make([]byte, 0),
+		textLogMode:      e.textLogMode,
+		outputType:       "stderr",
 	}
 
 	e.cmd.Stdout = plo
@@ -177,6 +188,8 @@ type proxyLogger struct {
 	proxyJsonLogKey  string
 	logger           *log.Logger
 	buf              []byte
+	textLogMode      bool
+	outputType       string
 }
 
 func (pl *proxyLogger) Write(p []byte) (int, error) {
@@ -211,7 +224,12 @@ func (pl *proxyLogger) Write(p []byte) (int, error) {
 		pl.logger.Debug("json log line not map[string]interface{}", slog.Any("line", line))
 
 		// fall back to using the logger
-		pl.logger.Info(string(p))
+		// Special handling: when text log mode is enabled and output is stdout, only print msg content
+		if pl.textLogMode && pl.outputType == "stdout" {
+			fmt.Print(string(p))
+		} else {
+			pl.logger.Info(string(p))
+		}
 
 		return len(p), nil
 	}
@@ -259,7 +277,13 @@ func (pl *proxyLogger) writerScanner(p []byte) {
 		if err := pl.tryLogJSON(line); err == nil {
 			continue
 		}
-		pl.logger.Info(line)
+
+		// Special handling: when text log mode is enabled and output is stdout, only print msg content
+		if pl.textLogMode && pl.outputType == "stdout" {
+			fmt.Println(line)
+		} else {
+			pl.logger.Info(line)
+		}
 	}
 	// If there was an error while scanning the input, log an error
 	if err := scanner.Err(); err != nil {
@@ -308,16 +332,25 @@ func (pl *proxyLogger) mergeAndLogInputLog(ctx context.Context, inputLog map[str
 	if len(logLine) > 10000 {
 		logLine = fmt.Sprintf("%s:truncated", logLine[:10000])
 
-		logger.Log(ctx, lvl.Level(), msg, slog.Any("hook", map[string]any{
-			"truncated": logLine,
-		}))
+		// Special handling: when text log mode is enabled and output is stdout, only print msg content
+		if pl.textLogMode && pl.outputType == "stdout" {
+			fmt.Println(msg)
+		} else {
+			logger.Log(ctx, lvl.Level(), msg, slog.Any("hook", map[string]any{
+				"truncated": logLine,
+			}))
+		}
 
 		return
 	}
 
-	for key, val := range inputLog {
-		logger = logger.With(slog.Any(prefix+"_"+key, val))
+	// Special handling: when text log mode is enabled and output is stdout, only print msg content
+	if pl.textLogMode && pl.outputType == "stdout" {
+		fmt.Println(msg)
+	} else {
+		for key, val := range inputLog {
+			logger = logger.With(slog.Any(prefix+"_"+key, val))
+		}
+		logger.Log(ctx, lvl.Level(), msg)
 	}
-
-	logger.Log(ctx, lvl.Level(), msg)
 }

@@ -239,6 +239,66 @@ plain text
 
 		buf.Reset()
 	})
+
+	t.Run("text log mode stdout only prints msg", func(t *testing.T) {
+		// Capture stdout to verify direct printing
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		ex := NewExecutor("", "echo", []string{"test message"}, []string{}).
+			WithLogger(logger).
+			WithTextLogMode(true)
+
+		_, err := ex.RunAndLogLines(context.Background(), map[string]string{"a": "b"})
+		assert.NoError(t, err)
+
+		// Close writer and restore stdout
+		w.Close()
+		os.Stdout = oldStdout
+
+		// Read captured output
+		var capturedOutput bytes.Buffer
+		capturedOutput.ReadFrom(r)
+
+		// Verify that the message was printed directly to stdout
+		assert.Equal(t, "test message\n", capturedOutput.String())
+
+		// Verify that nothing was written to the logger buffer
+		assert.Equal(t, "", buf.String())
+
+		buf.Reset()
+	})
+
+	t.Run("text log mode stderr uses logger", func(t *testing.T) {
+		// Capture stdout to verify no direct printing
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		ex := NewExecutor("", "sh", []string{"-c", "echo 'error message' >&2"}, []string{}).
+			WithLogger(logger).
+			WithTextLogMode(true)
+
+		_, err := ex.RunAndLogLines(context.Background(), map[string]string{"a": "b"})
+		// Note: This might return an error due to stderr output, but that's expected
+
+		// Close writer and restore stdout
+		w.Close()
+		os.Stdout = oldStdout
+
+		// Read captured output
+		var capturedOutput bytes.Buffer
+		capturedOutput.ReadFrom(r)
+
+		// Verify that nothing was printed directly to stdout
+		assert.Equal(t, "", capturedOutput.String())
+
+		// Verify that the error message was logged through the logger
+		assert.Contains(t, buf.String(), "error message")
+
+		buf.Reset()
+	})
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

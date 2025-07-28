@@ -166,7 +166,8 @@ func (h *Hook) Run(ctx context.Context, _ htypes.BindingType, context []bctx.Bin
 		envs).
 		WithLogProxyHookJSON(h.LogProxyHookJSON).
 		WithLogProxyHookJSONKey(h.LogProxyHookJSONKey).
-		WithLogger(h.Logger.Named("executor"))
+		WithLogger(h.Logger.Named("executor")).
+		WithTextLogMode(app.LogType == "text")
 
 	result := &Result{}
 
